@@ -1,0 +1,1217 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <link href="http://getbootstrap.com/examples/justified-nav/justified-nav.css" rel="stylesheet">
+
+    <style>
+        .axis path {
+            fill: none;
+            stroke: #777;
+            shape-rendering: crispEdges;
+        }
+        .axis text {
+            font-family: Lato;
+            font-size: 13px;
+        }
+        .buttons {
+            text-align:center;
+            margin:20px 0 40px;
+        }
+        #chart, #chart2 {
+            margin:10px auto;
+            position:relative;
+            width:600px
+        }
+        .button {
+            padding: 15px 30px;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #000000;
+            background: #95A5EA;
+            border: 1px solid #f1f1f1;
+            margin: 0 20px;
+        }
+        .current { background:#cdcdcd; }
+        .hidden { display:none; }
+        .tooltip, .tooltip2 {
+            background:#cdcdcd;
+            padding:15px 25px;
+            border:1px solid #f6f6f6;
+            position:absolute;
+            left:25%;
+            top:20%;
+            z-index:99999;
+            color:#000000;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="buttons">
+            <a href="javascript:void(0);" id="all-data-btn" class="button" onclick="InitChart()">All Data</a>
+            <a href="javascript:void(0);" id="protein-calories-btn" class="button" onclick="showProteinCalories()">Protein Intake vs. Calories Burnt</a>
+            <a href="javascript:void(0);" id="carb-calories-btn" class="button" onclick="showCarbCalories()">Carb Intake Vs. Calories Burnt </a>
+            <a href="javascript:void(0);" id="steps-calories-btn" class="button" onclick="showStepsCalories()">Steps Walked Vs Calories Burnt</a>
+        </div>
+        <div class="jumbotron">
+            <div id="chart"></div>
+            <div id="chart2"></div>
+            <script src="https://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+            <script>
+                function InitChart() {
+                    d3.selectAll("svg").remove();
+                    d3.select(".tooltip").remove();
+                    d3.select(".tooltip2").remove();
+
+                    var legendRectSize = 18;
+                    var legendSpacing = 4;
+                    var btnAll = document.getElementById('all-data-btn');
+                    var btnProtein = document.getElementById('protein-calories-btn');
+                    var btnCarbs = document.getElementById('carb-calories-btn');
+                    var btnSteps = document.getElementById('steps-calories-btn');
+                    var chart2 = document.getElementById('chart2');
+                    chart2.className = '';
+                    btnProtein.className = 'button';
+                    btnCarbs.className = 'button';
+                    btnSteps.className = 'button';
+                    btnAll.className += ' current';
+                    
+                    var dataset;
+                    d3.csv("data.csv",function(value){
+                        dataset = value;
+
+                        dataset.map(function(values){
+                            values.DAY = Number(values.DAY)
+                            values.Carbs_gms = Number(values.Carbs_gms)
+                            values.Protein_gms = Number(values.Protein_gms)
+                            values.Steps_feets = Number(values.Steps_feets)
+
+                            cal_burn = values.Calories_Burn.split(',')
+                            cal_burn = cal_burn[0]+cal_burn[1]
+                            values.Calories_Burn = Number(cal_burn)
+                        })
+
+                        //separated data from calorie and steps because of far range of dataset
+                        //for line chart
+                        var carb_protein_data = d3.keys(dataset[0]).filter(function(key_name)
+                        {
+                            //xAxis data name
+                             if(key_name !== 'DAY' && key_name !== "Calories_Burn" && key_name !== "Steps_feets"){
+                                    return key_name;
+                                };
+                        })
+
+                        //for bar chart
+                        var cal_steps_data = d3.keys(dataset[0]).filter(function(key_name)
+                        {
+                            //xAxis data name
+                             if(key_name !== 'DAY' && key_name !== "Carbs_gms" && key_name !== "Protein_gms"){
+                                    return key_name;
+                                };
+                        })
+
+
+                        var day = d3.keys(dataset[0]).filter(function(key_name){
+                            return key_name == 'DAY'
+                        })
+
+
+                        //color chart
+                        var color = d3.scale.ordinal().range(["grey","green","#001c9c","#101b4d","#475003","#9c8305","#d3c47c"]);
+                        var title = d3.scale.ordinal().range(["Protein(in gms) vs. Days", "Carbohydrates(in gms) vs Days"]);
+                        var title2 = d3.scale.ordinal().range(["Calories Burnt vs. Days", "Steps(in feet) vs Days"]);
+                        
+
+                        var seriesData = carb_protein_data.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['DAY'], value: +d[name]};
+                            })
+                          };
+                        });
+
+                        var xAxis_data = day.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['DAY'], value: +d[name]};
+                            })
+                          };
+                        });
+
+                        //for color in different lines
+                        color.domain(carb_protein_data);
+
+                        //line chart
+                        var svg = d3.select("#chart")
+                            .append('svg')
+                            .attr('id','vis1')
+                            .attr('width', 600)
+                            .attr('height',250);
+
+                        //bar chart
+                        var svg2 = d3.select("#chart2")
+                            .append('svg')
+                            .attr('id','vis2')
+                            .attr('width', 600)
+                            .attr('height',250);
+
+                        //line chart
+                        var vis = d3.select("#vis1")
+                            WIDTH = 500,
+                            HEIGHT = 250,
+                            MARGINS = {
+                                top: 20,
+                                right: 20,
+                                bottom: 20,
+                                left:50
+                            },
+                           
+                            xScale = d3.scale.linear()
+                            .range([MARGINS.left, WIDTH - MARGINS.right])
+                            //min and max of day
+                            .domain([d3.min(xAxis_data,function (c){
+                                return d3.min(c.values, function (d){
+                                    return d.value;
+                                })
+                            }),
+                            d3.max(xAxis_data,function (c){
+                                return d3.max(c.values, function (d){
+                                    return d.value;
+                                })
+                            })]),
+                            yScale = d3.scale.linear()
+                            .range([HEIGHT - MARGINS.top, MARGINS.bottom])
+                            //min and max of carbs and protein
+                            .domain([
+                                d3.min(seriesData,function (c){
+                                    return d3.min(c.values, function (d){
+                                        return d.value;
+                                    })
+                                }),
+                                d3.max(seriesData,function (c){
+                                    return d3.max(c.values, function (d){
+                                        return d.value;
+                                    })
+                                })
+                                ]),
+                             //creating x and y axis
+                            xAxis = d3.svg.axis()
+                            .scale(xScale),
+                            yAxis = d3.svg.axis()
+                            .scale(yScale)
+                            .orient("left");
+
+                        //to display the x axis values (days)
+                        vis.append("svg:g")
+                            .attr("class", "x axis")
+                            .attr("transform", "translate(0," + (HEIGHT - MARGINS.bottom) + ")")
+                            .call(xAxis);
+                        // to display the y axis values (carbs or protein)
+                        vis.append("svg:g")
+                            .attr("class", "y axis")
+                            .attr("transform", "translate(" + (MARGINS.left) + ",0)")
+                            .call(yAxis);
+
+                        //axis name
+                        vis.append("svg:g")
+                        .attr("class","y-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(50,0)"; 
+                        })
+                        .append('text')
+                        .attr("x", 30) 
+                        .attr("y", 6)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"y-legend")
+                        .text('Protein/Carbs')
+
+                         vis.append("svg:g")
+                        .attr("class","x-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(0,241)"; 
+                        })
+                        .append('text')
+                        .attr("x", 510)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"x-legend")
+                        .text('Days')
+
+                        //for plotting
+                        var carbs = d3.svg.line()
+                            .x(function(d) {
+                                return xScale(d.label);
+                            })
+                            .y(function(d) {
+                                return yScale(d.value);
+                            })
+                            .interpolate("basis");
+
+
+                        var series = vis.selectAll(".series")
+                        .data(seriesData)
+                        .enter()
+                        .append("g")
+                        .attr('class','series');
+
+                        series.append('path')
+                        .attr('class','line')
+                        .attr('d', function (d) { return carbs(d.values)})
+                        .attr('stroke', function (d) { return color(d.name)})
+                        .attr('title', function(d) { return title(d.name) })
+                        .attr('stroke-width', "2px")
+                        .attr('fill', 'none');
+                        
+                        var tip = d3.select("#chart").append('div')
+                            .attr("class","tooltip")
+                            .style("opacity",0);
+                        
+                        d3.select("#vis1").selectAll('.series').selectAll('.line')
+                        .on('mouseover', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","5px");
+                            tip.transition().duration(200)
+                                .style("opacity",.9)
+                                .text(d3.select(this).attr("title"));
+                        })
+                        .on('mouseout', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","2px");
+                            tip.transition().duration(200)
+                                .style("opacity",0);
+                        });
+
+                        //legend
+                        var legend = svg.selectAll(".legend")
+                            .data(carb_protein_data.slice().reverse())
+                            .enter()
+                            .append("g")
+                            .attr("class", "legend")
+                            .attr("transform", function (d, i) { 
+                              return "translate(55," + i * 20 + ")"; 
+                            });
+
+                        legend.append("rect")
+                            .attr("x", WIDTH - 40)
+                            .attr("width", 10)
+                            .attr("height", 10)
+                            .style("fill", color)
+                            .style("stroke", "grey");
+
+                        legend.append("text")
+                            .attr("x", WIDTH - 50)
+                            .attr("y", 6)
+                            .attr("dy", ".35em")
+                            .style("text-anchor", "end")
+                            .style('font-size','12px')
+                            .text(function (d) { return d; });
+
+                        /*************
+                        *   line chart 2
+                        ********/
+
+                        var color2 = d3.scale.ordinal().range(["blue","purple","#001c9c","#101b4d","#475003","#9c8305","#d3c47c"]);
+
+                        var seriesData2 = cal_steps_data.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['DAY'], value: +d[name]};
+                            })
+                          };
+                        });
+
+                        var xAxis_data2 = day.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['DAY'], value: +d[name]};
+                            })
+                          };
+                        });
+
+                        //for color in different lines
+                        color2.domain(cal_steps_data);
+                        
+                        var vis2 = d3.select("#vis2")
+                            WIDTH = 500,
+                            HEIGHT = 250,
+                            MARGINS = {
+                                top: 20,
+                                right: 20,
+                                bottom: 20,
+                                left:50
+                            },
+                           
+                            xScale = d3.scale.linear()
+                            .range([MARGINS.left, WIDTH - MARGINS.right])
+                            //min and max of day
+                            .domain([d3.min(xAxis_data2,function (c){
+                                return d3.min(c.values, function (d){
+                                    return d.value;
+                                })
+                            }),
+                            d3.max(xAxis_data2,function (c){
+                                return d3.max(c.values, function (d){
+                                    return d.value;
+                                })
+                            })]),
+                            yScale = d3.scale.linear()
+                            .range([HEIGHT - MARGINS.top, MARGINS.bottom])
+                            //min and max of carbs and protein
+                            .domain([
+                                d3.min(seriesData2,function (c){
+                                    return d3.min(c.values, function (d){
+                                        return d.value;
+                                    })
+                                }),
+                                d3.max(seriesData2,function (c){
+                                    return d3.max(c.values, function (d){
+                                        return d.value;
+                                    })
+                                })
+                                ]),
+                             //creating x and y axis
+                            xAxis = d3.svg.axis()
+                            .scale(xScale),
+                            yAxis = d3.svg.axis()
+                            .scale(yScale)
+                            .orient("left");
+
+                        //to display the x axis values (days)
+                        vis2.append("svg:g")
+                            .attr("class", "x axis")
+                            .attr("transform", "translate(0," + (HEIGHT - MARGINS.bottom) + ")")
+                            .call(xAxis);
+                        // to display the y axis values (carbs or protein)
+                        vis2.append("svg:g")
+                            .attr("class", "y axis")
+                            .attr("transform", "translate(" + (MARGINS.left) + ",0)")
+                            .call(yAxis);
+
+                        //axis name
+                        vis2.append("svg:g")
+                        .attr("class","y-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(50,0)"; 
+                        })
+                        .append('text')
+                        .attr("x", 30) 
+                        .attr("y", 6)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"y-legend")
+                        .text('Cal/Steps')
+
+                         vis2.append("svg:g")
+                        .attr("class","x-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(0,241)"; 
+                        })
+                        .append('text')
+                        .attr("x", 510)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"x-legend")
+                        .text('Days')
+
+                        //for plotting
+                        var cal_steps = d3.svg.line()
+                            .x(function(d) {
+                                return xScale(d.label);
+                            })
+                            .y(function(d) {
+                                return yScale(d.value);
+                            })
+                            .interpolate("basis");
+
+
+                        var series2 = vis2.selectAll(".series")
+                        .data(seriesData2)
+                        .enter()
+                        .append("g")
+                        .attr('class','series');
+
+                        series2.append('path')
+                        .attr('class','line')
+                        .attr('d', function (d) { return cal_steps(d.values)})
+                        .attr('stroke', function (d) { return color2(d.name)})
+                        .attr('title', function (d) { return title2(d.name)})
+                        .attr('stroke-width', "2px")
+                        .attr('fill', 'none');
+                        
+                        var tip2 = d3.select("#chart2").append('div')
+                            .attr("class","tooltip2")
+                            .style("opacity",0);
+                        
+                        d3.select("#vis2").selectAll('.series').selectAll('.line')
+                        .on('mouseover', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","5px");
+                            tip2.transition().duration(200)
+                                .style("opacity",.9)
+                                .text(d3.select(this).attr("title"));
+                        })
+                        .on('mouseout', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","2px");
+                            tip2.transition().duration(200)
+                                .style("opacity",0);
+                        });
+                        
+                        //legend
+                        var legend2 = svg2.selectAll(".legend")
+                            .data(cal_steps_data.slice().reverse())
+                            .enter()
+                            .append("g")
+                            .attr("class", "legend")
+                            .attr("transform", function (d, i) { 
+                              return "translate(55," + i * 20 + ")"; 
+                            });
+
+                        legend2.append("rect")
+                            .attr("x", WIDTH - 40)
+                            .attr("width", 10)
+                            .attr("height", 10)
+                            .style("fill", color)
+                            .style("stroke", "grey");
+
+                        legend2.append("text")
+                            .attr("x", WIDTH -50)
+                            .attr("y", 6)
+                            .attr("dy", ".35em")
+                            .style("text-anchor", "end")
+                            .style('font-size','12px')
+                            .text(function (d) { return d; });
+
+
+                    })  
+                }
+                
+                function showProteinCalories() {
+                    d3.selectAll("svg").remove();
+                    d3.select(".tooltip").remove();
+                    d3.select(".tooltip2").remove();
+                
+                    var legendRectSize = 18;
+                    var legendSpacing = 4;
+                    var btnAll = document.getElementById('all-data-btn');
+                    var btnProtein = document.getElementById('protein-calories-btn');
+                    var btnCarbs = document.getElementById('carb-calories-btn');
+                    var btnSteps = document.getElementById('steps-calories-btn');
+                    var chart2 = document.getElementById('chart2');
+                    chart2.className='hidden';
+                    btnSteps.className = 'button';
+                    btnCarbs.className = 'button';
+                    btnProtein.className += ' current';
+                    btnAll.className = 'button';
+
+                    var dataset;
+                    d3.csv("data.csv",function(value){
+                        dataset = value;
+
+                        dataset.map(function(values){
+                            values.DAY = Number(values.DAY)
+                            values.Carbs_gms = Number(values.Carbs_gms)
+                            values.Protein_gms = Number(values.Protein_gms)
+                            values.Steps_feets = Number(values.Steps_feets)
+
+                            cal_burn = values.Calories_Burn.split(',')
+                            cal_burn = cal_burn[0]+cal_burn[1]
+                            values.Calories_Burn = Number(cal_burn)
+                        })
+
+                        //separated data from calorie and steps because of far range of dataset
+                        //for line chart
+                        var calories = d3.keys(dataset[0]).filter(function(key_name)
+                        {
+                            //xAxis data name
+                             if(key_name !== 'DAY' && key_name !== "Protein_gms" && key_name !== "Carbs_gms" && key_name !== "Steps_feets"){
+                                    return key_name;
+                                };
+                        })
+                        
+                        var proteins = d3.keys(dataset[0]).filter(function(key_name){
+                            return key_name == 'Protein_gms'
+                        })
+
+                        //color chart
+                        var color = d3.scale.ordinal().range(["red","#CF1313","#001c9c","#101b4d","#475003","#9c8305","#d3c47c"]);
+                        
+
+                        var seriesData = calories.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['Protein_gms'], value: +d[name]};
+                            })
+                          };
+                        });
+                        
+                        var xAxis_data = proteins.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['Protein_gms'], value: +d[name]};
+                            })
+                          };
+                        });
+
+                        //for color in different lines
+                        color.domain(calories);
+
+                        //line chart
+                        var svg = d3.select("#chart")
+                            .append('svg')
+                            .attr('id','vis1')
+                            .attr('width', 600)
+                            .attr('height',250);
+
+                        //line chart
+                        var vis = d3.select("#vis1")
+                            WIDTH = 500,
+                            HEIGHT = 250,
+                            MARGINS = {
+                                top: 20,
+                                right: 20,
+                                bottom: 20,
+                                left:50
+                            },
+                           
+                            xScale = d3.scale.linear()
+                            .range([MARGINS.left, WIDTH - MARGINS.right])
+                            //min and max of day
+                            .domain([d3.min(xAxis_data,function (c){
+                                return d3.min(c.values, function (d){
+                                    return d.value;
+                                })
+                            }),
+                            d3.max(xAxis_data,function (c){
+                                return d3.max(c.values, function (d){
+                                    return d.value;
+                                })
+                            })]),
+                            yScale = d3.scale.linear()
+                            .range([HEIGHT - MARGINS.top, MARGINS.bottom])
+                            //min and max of carbs and protein
+                            .domain([
+                                d3.min(seriesData,function (c){
+                                    return d3.min(c.values, function (d){
+                                        return d.value;
+                                    })
+                                }),
+                                d3.max(seriesData,function (c){
+                                    return d3.max(c.values, function (d){
+                                        return d.value;
+                                    })
+                                })
+                                ]),
+                             //creating x and y axis
+                            xAxis = d3.svg.axis()
+                            .scale(xScale),
+                            yAxis = d3.svg.axis()
+                            .scale(yScale)
+                            .orient("left");
+
+                        //to display the x axis values (days)
+                        vis.append("svg:g")
+                            .attr("class", "x axis")
+                            .attr("transform", "translate(0," + (HEIGHT - MARGINS.bottom) + ")")
+                            .call(xAxis);
+                        // to display the y axis values (carbs or protein)
+                        vis.append("svg:g")
+                            .attr("class", "y axis")
+                            .attr("transform", "translate(" + (MARGINS.left) + ",0)")
+                            .call(yAxis);
+
+                        //axis name
+                        vis.append("svg:g")
+                        .attr("class","y-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(50,0)"; 
+                        })
+                        .append('text')
+                        .attr("x", 30) 
+                        .attr("y", 6)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"y-legend")
+                        .text('Calories Burnt')
+
+                         vis.append("svg:g")
+                        .attr("class","x-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(0,241)"; 
+                        })
+                        .append('text')
+                        .attr("x", 610)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"x-legend")
+                        .text('Protein Intake')
+
+                        //for plotting
+                        var protein = d3.svg.line()
+                            .x(function(d) {
+                                return xScale(d.label);
+                            })
+                            .y(function(d) {
+                                return yScale(d.value);
+                            })
+                            .interpolate("basis");
+
+
+                        var series = vis.selectAll(".series")
+                        .data(seriesData)
+                        .enter()
+                        .append("g")
+                        .attr('class','series');
+
+                        series.append('path')
+                        .attr('class','line')
+                        .attr('d', function (d) { return protein(d.values)})
+                        .attr('stroke', function (d) { return color(d.name)})
+                        .attr('stroke-width', "2px")
+                        .attr('fill', 'none');
+
+                        var tip = d3.select("#chart").append('div')
+                            .attr("class","tooltip")
+                            .style("opacity",0);
+                        var tip = d3.select("#chart .tooltip").text("Protein(in gms) vs Calories Burnt");
+                        
+                        d3.selectAll('.series').selectAll('.line')
+                        .on('mouseover', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","5px");
+                            tip.transition().duration(200)
+                                .style("opacity",.9)
+                                .text("Protein(in gms) vs Calories Burnt");
+                        })
+                        .on('mouseout', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","2px");
+                            tip.transition().duration(200)
+                                .style("opacity",0)
+                                .text("");
+                        });
+                        
+                        //legend
+                        var legend = svg.selectAll(".legend")
+                            .data(calories.slice().reverse())
+                            .enter()
+                            .append("g")
+                            .attr("class", "legend")
+                            .attr("transform", function (d, i) { 
+                              return "translate(55," + i * 20 + ")"; 
+                            });
+
+                        legend.append("rect")
+                            .attr("x", WIDTH - 40)
+                            .attr("width", 10)
+                            .attr("height", 10)
+                            .style("fill", color)
+                            .style("stroke", "grey");
+
+                        legend.append("text")
+                            .attr("x", WIDTH - 50)
+                            .attr("y", 6)
+                            .attr("dy", ".35em")
+                            .style("text-anchor", "end")
+                            .style('font-size','12px')
+                            .text(function (d) { return d; });
+                    })  
+                }
+                
+                function showCarbCalories() {
+                    d3.selectAll("svg").remove();
+                    d3.select(".tooltip").remove();
+                    d3.select(".tooltip2").remove();
+                
+                    var legendRectSize = 18;
+                    var legendSpacing = 4;
+                    var btnAll = document.getElementById('all-data-btn');
+                    var btnProtein = document.getElementById('protein-calories-btn');
+                    var btnCarbs = document.getElementById('carb-calories-btn');
+                    var btnSteps = document.getElementById('steps-calories-btn');
+                    var chart2 = document.getElementById('chart2');
+                    chart2.className='hidden';
+                    btnSteps.className = 'button';
+                    btnCarbs.className += ' current';
+                    btnProtein.className = 'button';
+                    btnAll.className = 'button';
+
+                    var dataset;
+                    d3.csv("data.csv",function(value){
+                        dataset = value;
+
+                        dataset.map(function(values){
+                            values.DAY = Number(values.DAY)
+                            values.Carbs_gms = Number(values.Carbs_gms)
+                            values.Protein_gms = Number(values.Protein_gms)
+                            values.Steps_feets = Number(values.Steps_feets)
+
+                            cal_burn = values.Calories_Burn.split(',')
+                            cal_burn = cal_burn[0]+cal_burn[1]
+                            values.Calories_Burn = Number(cal_burn)
+                        })
+
+                        //separated data from calorie and steps because of far range of dataset
+                        //for line chart
+                        var calories = d3.keys(dataset[0]).filter(function(key_name)
+                        {
+                            //xAxis data name
+                             if(key_name !== 'DAY' && key_name !== "Protein_gms" && key_name !== "Carbs_gms" && key_name !== "Steps_feets"){
+                                    return key_name;
+                                };
+                        })
+
+                        var carbs_data = d3.keys(dataset[0]).filter(function(key_name){
+                            return key_name == 'Carbs_gms'
+                        })
+
+                        //color chart
+                        var color = d3.scale.ordinal().range(["blue","#BE0202","#001c9c","#101b4d","#475003","#9c8305","#d3c47c"]);
+                        
+
+                        var seriesData = calories.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['Carbs_gms'], value: +d[name]};
+                            })
+                          };
+                        });
+
+                        var xAxis_data = carbs_data.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['Carbs_gms'], value: +d[name]};
+                            })
+                          };
+                        });
+
+                        //for color in different lines
+                        color.domain(calories);
+
+                        //line chart
+                        var svg = d3.select("#chart")
+                            .append('svg')
+                            .attr('id','vis1')
+                            .attr('width', 600)
+                            .attr('height',250);
+
+                        //line chart
+                        var vis = d3.select("#vis1")
+                            WIDTH = 500,
+                            HEIGHT = 250,
+                            MARGINS = {
+                                top: 20,
+                                right: 20,
+                                bottom: 20,
+                                left:50
+                            },
+                           
+                            xScale = d3.scale.linear()
+                            .range([MARGINS.left, WIDTH - MARGINS.right])
+                            //min and max of day
+                            .domain([d3.min(xAxis_data,function (c){
+                                return d3.min(c.values, function (d){
+                                    return d.value;
+                                })
+                            }),
+                            d3.max(xAxis_data,function (c){
+                                return d3.max(c.values, function (d){
+                                    return d.value;
+                                })
+                            })]),
+                            yScale = d3.scale.linear()
+                            .range([HEIGHT - MARGINS.top, MARGINS.bottom])
+                            //min and max of carbs and protein
+                            .domain([
+                                d3.min(seriesData,function (c){
+                                    return d3.min(c.values, function (d){
+                                        return d.value;
+                                    })
+                                }),
+                                d3.max(seriesData,function (c){
+                                    return d3.max(c.values, function (d){
+                                        return d.value;
+                                    })
+                                })
+                                ]),
+                             //creating x and y axis
+                            xAxis = d3.svg.axis()
+                            .scale(xScale),
+                            yAxis = d3.svg.axis()
+                            .scale(yScale)
+                            .orient("left");
+
+                        //to display the x axis values (days)
+                        vis.append("svg:g")
+                            .attr("class", "x axis")
+                            .attr("transform", "translate(0," + (HEIGHT - MARGINS.bottom) + ")")
+                            .call(xAxis);
+                        // to display the y axis values (carbs or protein)
+                        vis.append("svg:g")
+                            .attr("class", "y axis")
+                            .attr("transform", "translate(" + (MARGINS.left) + ",0)")
+                            .call(yAxis);
+
+                        //axis name
+                        vis.append("svg:g")
+                        .attr("class","y-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(50,0)"; 
+                        })
+                        .append('text')
+                        .attr("x", 30) 
+                        .attr("y", 6)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"y-legend")
+                        .text('Calories Burnt')
+
+                         vis.append("svg:g")
+                        .attr("class","x-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(0,241)"; 
+                        })
+                        .append('text')
+                        .attr("x", 600)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"x-legend")
+                        .text('Carbs Intake')
+
+                        //for plotting
+                        var carbs = d3.svg.line()
+                            .x(function(d) {
+                                return xScale(d.label);
+                            })
+                            .y(function(d) {
+                                return yScale(d.value);
+                            })
+                            .interpolate("basis");
+
+
+                        var series = vis.selectAll(".series")
+                        .data(seriesData)
+                        .enter()
+                        .append("g")
+                        .attr('class','series');
+
+                        series.append('path')
+                        .attr('class','line')
+                        .attr('d', function (d) { return carbs(d.values)})
+                        .attr('stroke', function (d) { return color(d.name)})
+                        .attr('stroke-width', "2px")
+                        .attr('fill', 'none');
+                        
+                        var tip = d3.select("#chart").append('div')
+                            .attr("class","tooltip")
+                            .style("opacity",0);
+                        
+                        d3.selectAll('.series').selectAll('.line')
+                        .on('mouseover', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","5px");
+                            tip.transition().duration(200)
+                                .style("opacity",.9)
+                                .text("Carbohydrates(in gms) vs Calories Burnt");
+                        })
+                        .on('mouseout', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","2px");
+                            tip.transition().duration(200)
+                                .style("opacity",0)
+                                .text("");
+                        });
+
+                        //legend
+                        var legend = svg.selectAll(".legend")
+                            .data(calories.slice().reverse())
+                            .enter()
+                            .append("g")
+                            .attr("class", "legend")
+                            .attr("transform", function (d, i) { 
+                              return "translate(55," + i * 20 + ")"; 
+                            });
+
+                        legend.append("rect")
+                            .attr("x", WIDTH - 40)
+                            .attr("width", 10)
+                            .attr("height", 10)
+                            .style("fill", color)
+                            .style("stroke", "grey");
+
+                        legend.append("text")
+                            .attr("x", WIDTH - 50)
+                            .attr("y", 6)
+                            .attr("dy", ".35em")
+                            .style("text-anchor", "end")
+                            .style('font-size','12px')
+                            .text(function (d) { return d; });
+                    })  
+                }
+                
+                function showStepsCalories() {
+                    d3.selectAll("svg").remove();
+                    d3.select(".tooltip").remove();
+                    d3.select(".tooltip2").remove();
+
+                    var legendRectSize = 18;
+                    var legendSpacing = 4;
+                    var btnAll = document.getElementById('all-data-btn');
+                    var btnProtein = document.getElementById('protein-calories-btn');
+                    var btnCarbs = document.getElementById('carb-calories-btn');
+                    var btnSteps = document.getElementById('steps-calories-btn');
+                    var chart2 = document.getElementById('chart2');
+                    chart2.className='hidden';
+                    btnSteps.className += '  current';
+                    btnCarbs.className = 'button';
+                    btnProtein.className = 'button';
+                    btnAll.className = 'button';
+
+                    var dataset;
+                    d3.csv("data.csv",function(value){
+                        dataset = value;
+
+                        dataset.map(function(values){
+                            values.DAY = Number(values.DAY)
+                            values.Carbs_gms = Number(values.Carbs_gms)
+                            values.Protein_gms = Number(values.Protein_gms)
+                            values.Steps_feets = Number(values.Steps_feets)
+
+                            cal_burn = values.Calories_Burn.split(',')
+                            cal_burn = cal_burn[0]+cal_burn[1]
+                            values.Calories_Burn = Number(cal_burn)
+                        })
+
+                        //separated data from calorie and steps because of far range of dataset
+                        //for line chart
+                        var calories = d3.keys(dataset[0]).filter(function(key_name)
+                        {
+                            //xAxis data name
+                             if(key_name !== 'DAY' && key_name !== "Protein_gms" && key_name !== "Carbs_gms" && key_name !== "Steps_feets"){
+                                    return key_name;
+                                };
+                        })
+
+                        var steps = d3.keys(dataset[0]).filter(function(key_name){
+                            return key_name == 'Steps_feets'
+                        })
+
+                        //color chart
+                        var color = d3.scale.ordinal().range(["green","#AA1919","#001c9c","#101b4d","#475003","#9c8305","#d3c47c"]);
+                        
+
+                        var seriesData = calories.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['Steps_feets'], value: +d[name]};
+                            })
+                          };
+                        });
+
+                        var xAxis_data = steps.map(function (name) {
+                          return {
+                            name: name,
+                            values: dataset.map(function (d) {
+                              return {name: name, label: d['Steps_feets'], value: +d[name]};
+                            })
+                          };
+                        });
+
+                        //for color in different lines
+                        color.domain(calories);
+
+                        //line chart
+                        var svg = d3.select("#chart")
+                            .append('svg')
+                            .attr('id','vis1')
+                            .attr('width', 600)
+                            .attr('height',250);
+
+                        //line chart
+                        var vis = d3.select("#vis1")
+                            WIDTH = 500,
+                            HEIGHT = 250,
+                            MARGINS = {
+                                top: 20,
+                                right: 20,
+                                bottom: 20,
+                                left:50
+                            },
+                           
+                            xScale = d3.scale.linear()
+                            .range([MARGINS.left, WIDTH - MARGINS.right])
+                            //min and max of day
+                            .domain([d3.min(xAxis_data,function (c){
+                                return d3.min(c.values, function (d){
+                                    return d.value;
+                                })
+                            }),
+                            d3.max(xAxis_data,function (c){
+                                return d3.max(c.values, function (d){
+                                    return d.value;
+                                })
+                            })]),
+                            yScale = d3.scale.linear()
+                            .range([HEIGHT - MARGINS.top, MARGINS.bottom])
+                            //min and max of carbs and protein
+                            .domain([
+                                d3.min(seriesData,function (c){
+                                    return d3.min(c.values, function (d){
+                                        return d.value;
+                                    })
+                                }),
+                                d3.max(seriesData,function (c){
+                                    return d3.max(c.values, function (d){
+                                        return d.value;
+                                    })
+                                })
+                                ]),
+                             //creating x and y axis
+                            xAxis = d3.svg.axis()
+                            .scale(xScale),
+                            yAxis = d3.svg.axis()
+                            .scale(yScale)
+                            .orient("left");
+
+                        //to display the x axis values (days)
+                        vis.append("svg:g")
+                            .attr("class", "x axis")
+                            .attr("transform", "translate(0," + (HEIGHT - MARGINS.bottom) + ")")
+                            .call(xAxis);
+                        // to display the y axis values (carbs or protein)
+                        vis.append("svg:g")
+                            .attr("class", "y axis")
+                            .attr("transform", "translate(" + (MARGINS.left) + ",0)")
+                            .call(yAxis);
+
+                        //axis name
+                        vis.append("svg:g")
+                        .attr("class","y-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(50,0)"; 
+                        })
+                        .append('text')
+                        .attr("x", 30) 
+                        .attr("y", 6)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"y-legend")
+                        .text('Calories Burnt')
+
+                         vis.append("svg:g")
+                        .attr("class","x-axis-legend")
+                        .attr("transform", function (d, i) { 
+                          return "translate(0,241)"; 
+                        })
+                        .append('text')
+                        .attr("x", 530)
+                        .attr("dy", ".35em")
+                        .style("text-anchor", "end")
+                        .style('font-size','12px')
+                        .attr('class',"x-legend")
+                        .text('Steps')
+
+                        //for plotting
+                        var steps = d3.svg.line()
+                            .x(function(d) {
+                                return xScale(d.label);
+                            })
+                            .y(function(d) {
+                                return yScale(d.value);
+                            })
+                            .interpolate("basis");
+
+
+                        var series = vis.selectAll(".series")
+                        .data(seriesData)
+                        .enter()
+                        .append("g")
+                        .attr('class','series');
+
+                        series.append('path')
+                        .attr('class','line')
+                        .attr('d', function (d) { return steps(d.values)})
+                        .attr('stroke', function (d) { return color(d.name)})
+                        .attr('stroke-width', "2px")
+                        .attr('fill', 'none');
+                        
+                        var tip = d3.select("#chart").append('div')
+                            .attr("class","tooltip")
+                            .style("opacity",0);
+                        
+                        d3.selectAll('.series').selectAll('.line')
+                        .on('mouseover', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","5px");
+                            tip.transition().duration(200)
+                                .style("opacity",.9)
+                                .text("Steps(in feet) vs Calories Burnt");
+                        })
+                        .on('mouseout', function(){
+                            d3.select(this).transition().duration(300)
+                                .attr("stroke-width","2px");
+                            tip.transition().duration(200)
+                                .style("opacity",0)
+                                .text("");
+                        });
+
+                        //legend
+                        var legend = svg.selectAll(".legend")
+                            .data(calories.slice().reverse())
+                            .enter()
+                            .append("g")
+                            .attr("class", "legend")
+                            .attr("transform", function (d, i) { 
+                              return "translate(55," + i * 20 + ")"; 
+                            });
+
+                        legend.append("rect")
+                            .attr("x", WIDTH - 40)
+                            .attr("width", 10)
+                            .attr("height", 10)
+                            .style("fill", color)
+                            .style("stroke", "#8F8EF3");
+
+                        legend.append("text")
+                            .attr("x", WIDTH - 50)
+                            .attr("y", 6)
+                            .attr("dy", ".35em")
+                            .style("text-anchor", "end")
+                            .style('font-size','12px')
+                            .text(function (d) { return d; });
+                    })  
+                }
+                InitChart();
+            </script>
+        </div>
+
+    </div>
+
+</body>
+
+</html>
