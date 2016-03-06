@@ -2,6 +2,7 @@
 
 ## Protein-Carbs-Calories-Steps 
 Viz is located here: http://dataleaders.io/d3/sampled3-v2.html
+
 This is a small dataset from a "friends" Jawbone (weareable fitness device.) The datapoints of interest are:
 
 1. Protein Consumed
